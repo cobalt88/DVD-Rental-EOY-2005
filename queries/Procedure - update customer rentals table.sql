@@ -1,20 +1,19 @@
-CREATE OR REPLACE FUNCTION update_rentals_report()
-RETURNS TRIGGER AS $$
-DECLARE
-    customer_name TEXT;
-    rental_month TEXT;
+CREATE OR REPLACE PROCEDURE update_customer_rentals_by_month(new_customer_id int)
+LANGUAGE plpgsql
+AS $$
 BEGIN
-    SELECT c.first_name || ' ' || c.last_name, to_char(NEW.rental_date, 'YYYY-MM')
-    INTO customer_name, rental_month
-    FROM customer c
-    WHERE c.customer_id = NEW.customer_id;
+    INSERT INTO customer_rentals_by_month (customer, date, rentals)
+    SELECT 
+        c.first_name || ' ' || c.last_name AS customer,
+        to_char(NOW(), 'YYYY-MM') AS date, -- Assume we're updating for the current month
+        COUNT(*) AS rentals
+    FROM rental AS r
+    LEFT JOIN customer AS c ON r.customer_id = c.customer_id
+    WHERE c.customer_id = new_customer_id
+    GROUP BY customer, date
+    ON CONFLICT (customer, date) DO UPDATE 
+    SET rentals = EXCLUDED.rentals;
 
-    IF EXISTS (SELECT 1 FROM end_of_year_rentals_report_2005 WHERE Customer = customer_name AND date_trunc('month', rental_month) = date_trunc('month', NEW.rental_date)) THEN
-        EXECUTE format('UPDATE end_of_year_rentals_report_2005 SET "%s" = "%s" + 1 WHERE Customer = $1', rental_month, rental_month) USING customer_name;
-    ELSE
-        EXECUTE format('INSERT INTO end_of_year_rentals_report_2005 (Customer, "%s") VALUES ($1, 1)', rental_month) USING customer_name;
-    END IF;
-
-    RETURN NEW;
+    RAISE NOTICE 'Update completed successfully.';
 END;
-$$ LANGUAGE plpgsql;
+$$;
