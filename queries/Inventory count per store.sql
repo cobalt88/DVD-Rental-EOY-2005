@@ -1,0 +1,1 @@
+SELECT inventory.store_id, COUNT(*) FROM inventory GROUP BY inventory.store_id
